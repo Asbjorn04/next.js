@@ -48,12 +48,15 @@ impl AvailableChunkGroups {
 }
 
 impl AvailableChunkGroups {
-    pub fn is_available_individual(&self, module: &RoaringBitmapWrapper) -> bool {
+    pub fn is_available_individual(&self, module_chunk_groups: &RoaringBitmapWrapper) -> bool {
         // `self.chunk_groups` is the union of all parent chunk groups (i.e. a single chunking path
         // leading to this module)
         //
-        // `module` is the union of all chunk groups of the module (i.e. the union of all paths
-        // leading to this module)
-        self.chunk_groups.is_superset(module)
+        // `module_chunk_groups` is the union of all chunk groups of the module (i.e. the union of
+        // all paths leading to this module)
+        //
+        // The module is available, if there is at least one parent chunk group (bit is set in
+        // `self.chunk_groups`) that contains the module (bit is set in `module`)
+        !self.chunk_groups.is_disjoint(module_chunk_groups)
     }
 }
