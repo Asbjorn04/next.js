@@ -11,9 +11,9 @@ use turbopack_core::{
         availability_info::AvailabilityInfo,
         chunk_group::{make_chunk_group, MakeChunkGroupResult},
         module_id_strategies::{DevModuleIdStrategy, ModuleIdStrategy},
-        Chunk, ChunkGroupResult, ChunkItem, ChunkableModule, ChunkingConfig, ChunkingConfigs,
-        ChunkingContext, EntryChunkGroupResult, EvaluatableAssets, MinifyType, ModuleId,
-        SourceMapsType,
+        Chunk, ChunkGroupResult, ChunkGroupType, ChunkItem, ChunkableModule, ChunkingConfig,
+        ChunkingConfigs, ChunkingContext, EntryChunkGroupResult, EvaluatableAssets, MinifyType,
+        ModuleId, SourceMapsType,
     },
     environment::Environment,
     ident::AssetIdent,
@@ -348,12 +348,11 @@ impl ChunkingContext for NodeJsChunkingContext {
     ) -> Result<Vc<ChunkGroupResult>> {
         let span = tracing::info_span!("chunking", module = ident.to_string().await?.to_string());
         async move {
-            let modules = chunk_group.entries();
             let MakeChunkGroupResult {
                 chunks,
                 availability_info,
             } = make_chunk_group(
-                modules,
+                chunk_group,
                 module_graph,
                 ResolvedVc::upcast(self),
                 availability_info.into_value(),
@@ -391,16 +390,22 @@ impl ChunkingContext for NodeJsChunkingContext {
     ) -> Result<Vc<EntryChunkGroupResult>> {
         let availability_info = availability_info.into_value();
 
-        let MakeChunkGroupResult {
-            chunks,
-            availability_info,
-        } = make_chunk_group(
-            once(module).chain(
+        let entries = once(module)
+            .chain(
                 evaluatable_assets
                     .await?
                     .iter()
                     .map(|&asset| ResolvedVc::upcast(asset)),
-            ),
+            )
+            .collect();
+        let MakeChunkGroupResult {
+            chunks,
+            availability_info,
+        } = make_chunk_group(
+            ChunkGroup::Entry {
+                entries,
+                ty: ChunkGroupType::Entry,
+            },
             module_graph,
             ResolvedVc::upcast(self),
             availability_info,
