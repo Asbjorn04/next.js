@@ -1474,7 +1474,11 @@ impl Endpoint for PageEndpoint {
 
         if let PageEndpointType::Html = this.ty {
             modules.push((
-                vec![self.client_module().to_resolved().await?],
+                self.client_evaluatable_assets()
+                    .await?
+                    .iter()
+                    .map(|m| ResolvedVc::upcast(*m))
+                    .collect(),
                 ChunkGroupType::Evaluated,
             ));
         }
