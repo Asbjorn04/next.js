@@ -1,6 +1,6 @@
 use std::{
     collections::BinaryHeap,
-    hash::Hash,
+    hash::{Hash, Hasher},
     ops::{Deref, DerefMut},
 };
 
@@ -9,13 +9,13 @@ use either::Either;
 use indexmap::map::Entry;
 use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
 use roaring::RoaringBitmap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use serde::{Deserialize, Serialize};
 use tracing::Instrument;
 use turbo_rcstr::RcStr;
 use turbo_tasks::{
     debug::ValueDebugFormat, trace::TraceRawVcs, FxIndexMap, FxIndexSet, NonLocalValue, ResolvedVc,
-    TaskInput, TryJoinIterExt, Vc,
+    TaskInput, TryJoinIterExt, ValueToString, Vc,
 };
 
 use crate::{
@@ -96,12 +96,30 @@ pub struct ChunkGroupInfo {
 #[turbo_tasks::value_impl]
 impl ChunkGroupInfo {
     #[turbo_tasks::function]
-    pub fn get_index_of(&self, chunk_group: ChunkGroup) -> Result<Vc<usize>> {
+    pub async fn get_index_of(&self, chunk_group: ChunkGroup) -> Result<Vc<usize>> {
         if let Some(idx) = self.chunk_groups.get_index_of(&chunk_group) {
             Ok(Vc::cell(idx))
         } else {
-            bail!("Couldn't find chunk group index");
+            bail!(
+                "Couldn't find chunk group index for {} in {:?}",
+                chunk_group.debug_str(self).await?,
+                self.chunk_groups
+                    .iter()
+                    .map(|c| c.debug_str(self))
+                    .try_join()
+                    .await?
+            );
         }
+    }
+}
+
+impl ChunkGroupInfo {
+    pub fn hash_chunk_groups(&self, chunk_groups: &RoaringBitmapWrapper) -> u64 {
+        let mut result = FxHasher::default();
+        for idx in chunk_groups.iter() {
+            self.chunk_groups[idx as usize].hash_chunk_groups(&mut result, self);
+        }
+        result.finish()
     }
 }
 
@@ -142,6 +160,92 @@ impl ChunkGroup {
             | ChunkGroup::IsolatedMerged { entries, .. }
             | ChunkGroup::SharedMerged { entries, .. } => Either::Right(entries.iter().copied()),
         }
+    }
+
+    pub fn hash_chunk_groups(&self, hasher: &mut impl Hasher, chunk_group_info: &ChunkGroupInfo) {
+        match self {
+            g @ ChunkGroup::Entry { .. } => g.hash(hasher),
+            g @ ChunkGroup::Async(_) => g.hash(hasher),
+            g @ ChunkGroup::Isolated(_) => g.hash(hasher),
+            g @ ChunkGroup::Shared(_) => g.hash(hasher),
+            ChunkGroup::IsolatedMerged {
+                parent,
+                merge_tag,
+                entries,
+            } => {
+                core::mem::discriminant(self).hash(hasher);
+                chunk_group_info.chunk_groups[*parent].hash_chunk_groups(hasher, chunk_group_info);
+                merge_tag.hash(hasher);
+                entries.hash(hasher);
+            }
+            ChunkGroup::SharedMerged {
+                parent,
+                merge_tag,
+                entries,
+            } => {
+                core::mem::discriminant(self).hash(hasher);
+                chunk_group_info.chunk_groups[*parent].hash_chunk_groups(hasher, chunk_group_info);
+                merge_tag.hash(hasher);
+                entries.hash(hasher);
+            }
+        }
+    }
+
+    pub async fn debug_str(&self, chunk_group_info: &ChunkGroupInfo) -> Result<String> {
+        Ok(match self {
+            ChunkGroup::Entry { entries, ty } => format!(
+                "ChunkGroup::Entry({:?}, {:?})",
+                ty,
+                entries
+                    .iter()
+                    .map(|m| m.ident().to_string())
+                    .try_join()
+                    .await?
+            ),
+            ChunkGroup::Async(entry) => {
+                format!("ChunkGroup::Async({:?})", entry.ident().to_string())
+            }
+            ChunkGroup::Isolated(entry) => {
+                format!("ChunkGroup::Isolated({:?})", entry.ident().to_string())
+            }
+            ChunkGroup::Shared(entry) => {
+                format!("ChunkGroup::Shared({:?})", entry.ident().to_string())
+            }
+            ChunkGroup::IsolatedMerged {
+                parent,
+                merge_tag,
+                entries,
+            } => {
+                format!(
+                    "ChunkGroup::IsolatedMerged({}, {}, {:?})",
+                    Box::pin(chunk_group_info.chunk_groups[*parent].debug_str(chunk_group_info))
+                        .await?,
+                    merge_tag,
+                    entries
+                        .iter()
+                        .map(|m| m.ident().to_string())
+                        .try_join()
+                        .await?
+                )
+            }
+            ChunkGroup::SharedMerged {
+                parent,
+                merge_tag,
+                entries,
+            } => {
+                format!(
+                    "ChunkGroup::SharedMerged({}, {}, {:?})",
+                    Box::pin(chunk_group_info.chunk_groups[*parent].debug_str(chunk_group_info))
+                        .await?,
+                    merge_tag,
+                    entries
+                        .iter()
+                        .map(|m| m.ident().to_string())
+                        .try_join()
+                        .await?
+                )
+            }
+        })
     }
 }
 
