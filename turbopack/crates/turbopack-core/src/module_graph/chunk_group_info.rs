@@ -101,13 +101,14 @@ impl ChunkGroupInfo {
             Ok(Vc::cell(idx))
         } else {
             bail!(
-                "Couldn't find chunk group index for {} in {:?}",
+                "Couldn't find chunk group index for {} in {}",
                 chunk_group.debug_str(self).await?,
                 self.chunk_groups
                     .iter()
                     .map(|c| c.debug_str(self))
                     .try_join()
                     .await?
+                    .join(", ")
             );
         }
     }
@@ -203,13 +204,16 @@ impl ChunkGroup {
                     .await?
             ),
             ChunkGroup::Async(entry) => {
-                format!("ChunkGroup::Async({:?})", entry.ident().to_string())
+                format!("ChunkGroup::Async({:?})", entry.ident().to_string().await?)
             }
             ChunkGroup::Isolated(entry) => {
-                format!("ChunkGroup::Isolated({:?})", entry.ident().to_string())
+                format!(
+                    "ChunkGroup::Isolated({:?})",
+                    entry.ident().to_string().await?
+                )
             }
             ChunkGroup::Shared(entry) => {
-                format!("ChunkGroup::Shared({:?})", entry.ident().to_string())
+                format!("ChunkGroup::Shared({:?})", entry.ident().to_string().await?)
             }
             ChunkGroup::IsolatedMerged {
                 parent,
