@@ -402,6 +402,12 @@ async function createComponentTreeInternal({
       <StreamingMetadata />
     ) : undefined
 
+  // console.log('actualSegment', actualSegment, tree)
+  const metadataOutlet =
+    actualSegment !== DEFAULT_SEGMENT_KEY ? (
+      <StreamingMetadataOutlet />
+    ) : undefined
+
   const notFoundElement = NotFound ? (
     <>
       <NotFound />
@@ -715,10 +721,14 @@ async function createComponentTreeInternal({
           <MetadataOutlet ready={getViewportReady} />
           {/* Blocking metadata outlet */}
           <MetadataOutlet ready={getMetadataReady} />
+<<<<<<< HEAD
           {/* Streaming metadata outlet */}
           {actualSegment !== DEFAULT_SEGMENT_KEY ? (
             <StreamingMetadataOutlet />
           ) : undefined}
+=======
+          {metadataOutlet}
+>>>>>>> ea2e6b3df2 (fix duplicate metadata and parallel routes)
         </OutletBoundary>
       </React.Fragment>,
       parallelRouteCacheNodeSeedData,
