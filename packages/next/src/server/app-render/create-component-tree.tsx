@@ -402,7 +402,6 @@ async function createComponentTreeInternal({
       <StreamingMetadata />
     ) : undefined
 
-  // console.log('actualSegment', actualSegment, tree)
   const metadataOutlet =
     actualSegment !== DEFAULT_SEGMENT_KEY ? (
       <StreamingMetadataOutlet />
