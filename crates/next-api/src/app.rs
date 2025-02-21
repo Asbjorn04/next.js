@@ -1658,16 +1658,14 @@ impl AppEndpoint {
                 }
             }
             NextRuntime::NodeJs => {
-                let mut evaluatable_assets = this.app_project.rsc_runtime_entries().owned().await?;
-
                 let Some(rsc_entry) = ResolvedVc::try_downcast(app_entry.rsc_entry) else {
                     bail!("rsc_entry must be evaluatable");
                 };
 
-                evaluatable_assets.push(server_action_manifest_loader);
+                let mut evaluatable_assets = this.app_project.rsc_runtime_entries().owned().await?;
                 evaluatable_assets.push(rsc_entry);
 
-                let entry_chunk_group = *module_graph
+                let entry_chunk_group_idx = *module_graph
                     .chunk_group_info()
                     .get_index_of(ChunkGroup::Entry {
                         entries: vec![ResolvedVc::upcast(rsc_entry)],
@@ -1696,7 +1694,7 @@ impl AppEndpoint {
                                     )
                                     .with_modifier(server_utils_modifier()),
                                     ChunkGroup::SharedMerged {
-                                        parent: entry_chunk_group,
+                                        parent: entry_chunk_group_idx,
                                         merge_tag: NEXT_SERVER_UTILITY_MERGE_TAG.clone(),
                                         entries: server_utils,
                                     },
@@ -1753,6 +1751,19 @@ impl AppEndpoint {
                         .instrument(span)
                         .await?;
                     }
+
+                    current_chunks = current_chunks
+                        .concatenate(chunking_context.chunk_group_assets(
+                            server_action_manifest_loader.ident(),
+                            ChunkGroup::Entry {
+                                entries: vec![ResolvedVc::upcast(server_action_manifest_loader)],
+                                ty: ChunkGroupType::Entry,
+                            },
+                            module_graph,
+                            Value::new(current_availability_info),
+                        ))
+                        .resolve()
+                        .await?;
 
                     anyhow::Ok(Vc::cell(vec![
                         chunking_context
