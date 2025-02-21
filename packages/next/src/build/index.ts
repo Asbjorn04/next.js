@@ -2760,7 +2760,6 @@ export default async function build(
               // The htmlLimitedBots has been converted to a string during loadConfig
               config.htmlLimitedBots || HTML_LIMITED_BOT_UA_RE_STRING
 
-            console.log('isRoutePPREnabled', page, isRoutePPREnabled)
             // this flag is used to selectively bypass the static cache and invoke the lambda directly
             // to enable server actions on static routes
             const bypassFor: RouteHas[] = [
