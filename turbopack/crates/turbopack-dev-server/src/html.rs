@@ -164,7 +164,7 @@ impl DevHtmlAsset {
                     chunking_context.root_chunk_group_assets(
                         chunkable_module.ident(),
                         ChunkGroup::Entry {
-                            entries: vec![ResolvedVc::upcast(chunkable_module)],
+                            entries: [ResolvedVc::upcast(chunkable_module)].into_iter().collect(),
                             ty: ChunkGroupType::Evaluated,
                         },
                         *module_graph,

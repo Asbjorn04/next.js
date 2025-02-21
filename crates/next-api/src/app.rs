@@ -1668,7 +1668,7 @@ impl AppEndpoint {
                 let entry_chunk_group_idx = *module_graph
                     .chunk_group_info()
                     .get_index_of(ChunkGroup::Entry {
-                        entries: vec![ResolvedVc::upcast(rsc_entry)],
+                        entries: [ResolvedVc::upcast(rsc_entry)].into_iter().collect(),
                         ty: ChunkGroupType::Entry,
                     })
                     .await?;
@@ -1686,7 +1686,9 @@ impl AppEndpoint {
                                 .iter()
                                 .map(async |m| Ok(ResolvedVc::upcast(m.await?.module)))
                                 .try_join()
-                                .await?;
+                                .await?
+                                .into_iter()
+                                .collect();
                             let chunk_group = chunking_context
                                 .chunk_group(
                                     AssetIdent::from_path(
@@ -1753,15 +1755,19 @@ impl AppEndpoint {
                     }
 
                     current_chunks = current_chunks
-                        .concatenate(chunking_context.chunk_group_assets(
-                            server_action_manifest_loader.ident(),
-                            ChunkGroup::Entry {
-                                entries: vec![ResolvedVc::upcast(server_action_manifest_loader)],
-                                ty: ChunkGroupType::Entry,
-                            },
-                            module_graph,
-                            Value::new(current_availability_info),
-                        ))
+                        .concatenate(
+                            chunking_context.chunk_group_assets(
+                                server_action_manifest_loader.ident(),
+                                ChunkGroup::Entry {
+                                    entries: [ResolvedVc::upcast(server_action_manifest_loader)]
+                                        .into_iter()
+                                        .collect(),
+                                    ty: ChunkGroupType::Entry,
+                                },
+                                module_graph,
+                                Value::new(current_availability_info),
+                            ),
+                        )
                         .resolve()
                         .await?;
 
